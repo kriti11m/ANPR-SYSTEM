@@ -1,0 +1,132 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: anpr-postgres
+    environment:
+      POSTGRES_DB: anpr_db
+      POSTGRES_USER: anpr_user
+      POSTGRES_PASSWORD: anpr_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - anpr-network
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: anpr-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - anpr-network
+    restart: unless-stopped
+
+  # Backend API
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: anpr-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://anpr_user:anpr_pass@postgres:5432/anpr_db
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=your-secret-key-change-in-production
+      - DEBUG=false
+    volumes:
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+      - ./vision/models:/app/models
+    networks:
+      - anpr-network
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  # Frontend Web App
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: anpr-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+      - REACT_APP_WS_URL=ws://localhost:8000/ws
+    networks:
+      - anpr-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # Vision Processing Service
+  vision:
+    build:
+      context: ./vision
+      dockerfile: Dockerfile
+    container_name: anpr-vision
+    environment:
+      - DATABASE_URL=postgresql://anpr_user:anpr_pass@postgres:5432/anpr_db
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./vision/models:/app/models
+      - ./uploads:/app/uploads
+      - /dev/video0:/dev/video0  # For webcam access
+    networks:
+      - anpr-network
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+    privileged: true  # For camera access
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: anpr-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/ssl/certs
+    networks:
+      - anpr-network
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+
+  # Database Admin Interface
+  adminer:
+    image: adminer
+    container_name: anpr-adminer
+    ports:
+      - "8080:8080"
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    networks:
+      - anpr-network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  anpr-network:
+    driver: bridge

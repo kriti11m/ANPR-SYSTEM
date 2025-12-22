@@ -1,0 +1,65 @@
+# FastAPI and ASGI server
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+gunicorn>=21.2.0
+
+# Database
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0  # PostgreSQL adapter
+alembic>=1.12.0  # Database migrations
+
+# Authentication and security
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-multipart>=0.0.6
+
+# Environment and configuration
+pydantic[email]>=2.4.0
+pydantic-settings>=2.0.0
+python-decouple>=3.8
+
+# Redis for caching and task queue
+redis>=5.0.0
+celery>=5.3.0
+
+# HTTP requests
+httpx>=0.25.0
+aiohttp>=3.8.0
+
+# File handling and validation
+python-magic>=0.4.27
+Pillow>=10.0.0
+
+# Monitoring and logging
+structlog>=23.1.0
+sentry-sdk[fastapi]>=1.32.0
+
+# System monitoring
+psutil>=5.9.0
+
+# Development and testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+httpx>=0.25.0  # For testing FastAPI endpoints
+
+# Code quality
+black>=23.7.0
+isort>=5.12.0
+flake8>=6.0.0
+mypy>=1.5.0
+
+# Documentation
+mkdocs>=1.5.0
+mkdocs-material>=9.2.0
+
+# WebSocket support
+websockets>=11.0.0
+
+# Background task processing
+asyncio-mqtt>=0.13.0  # For MQTT integration (optional)
+apscheduler>=3.10.0   # Task scheduling
+
+# Utilities
+python-slugify>=8.0.0
+arrow>=1.2.0  # Better datetime handling

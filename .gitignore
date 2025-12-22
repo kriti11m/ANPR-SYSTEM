@@ -1,0 +1,112 @@
+# Git repository ignore rules for ANPR system
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# YOLOv11 models (large files - use Git LFS or download separately)
+*.pt
+*.onnx
+*.trt
+*.engine
+
+# Test outputs
+sample_test_image.jpg
+detected_plate_*.jpg
+batch_plate_*.jpg
+
+# Database files (development)
+*.db
+*.sqlite3
+
+# Node modules (frontend)
+node_modules/
+
+# Build outputs
+dist/
+build/
+
+# Docker volumes
+docker-data/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Configuration files with secrets
+.env.local
+.env.production
+config/secrets.yml
+
+# Media files for testing (can be large)
+test_videos/
+test_images/
+sample_videos/
+
+# Coverage reports
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Performance profiling
+.prof
