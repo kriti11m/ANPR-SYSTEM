@@ -9,6 +9,7 @@ Pillow>=8.3.0
 # OCR and text recognition
 pytesseract>=0.3.8
 easyocr>=1.6.0
+paddleocr>=2.6.0  # Added PaddleOCR for multilingual support
 
 # Image processing
 scikit-image>=0.18.0

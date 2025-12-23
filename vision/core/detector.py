@@ -32,6 +32,9 @@ class PlateDetection:
     cropped_plate: np.ndarray
     class_id: int
     timestamp: float
+    license_plate: str = ""  # OCR extracted text
+    ocr_confidence: float = 0.0  # OCR confidence score
+    valid_plate: bool = False  # Whether text matches plate patterns
 
 
 class YOLOv11PlateDetector:
@@ -51,7 +54,9 @@ class YOLOv11PlateDetector:
         confidence_threshold: float = 0.5,
         iou_threshold: float = 0.4,
         device: str = "auto",
-        input_size: int = 640
+        input_size: int = 640,
+        enable_ocr: bool = True,
+        ocr_engines: List[str] = None
     ):
         """
         Initialize YOLOv11 license plate detector.
@@ -62,9 +67,12 @@ class YOLOv11PlateDetector:
             iou_threshold: IoU threshold for NMS (0.0-1.0)
             device: Device to run inference ('cpu', 'cuda', 'auto')
             input_size: Input image size for YOLO (640, 1280, etc.)
+            enable_ocr: Whether to perform OCR on detected plates
+            ocr_engines: List of OCR engines to use (default: ['auto'])
         """
         self.model_path = model_path
         self.confidence_threshold = confidence_threshold
+        self.enable_ocr = enable_ocr
         self.iou_threshold = iou_threshold
         self.device = device
         self.input_size = input_size
@@ -73,6 +81,22 @@ class YOLOv11PlateDetector:
         self.inference_times = []
         self.detections_count = 0
         self.frames_processed = 0
+        
+        # Initialize OCR if enabled
+        self.ocr_processor = None
+        if self.enable_ocr:
+            try:
+                from .ocr import LicensePlateOCR, OCREngine
+                if ocr_engines is None:
+                    ocr_engines = [OCREngine.AUTO]
+                else:
+                    ocr_engines = [OCREngine(engine) for engine in ocr_engines]
+                
+                self.ocr_processor = LicensePlateOCR(engines=ocr_engines)
+                logger.info(f"OCR enabled with engines: {[e.value for e in ocr_engines]}")
+            except ImportError as e:
+                logger.warning(f"OCR not available: {e}")
+                self.enable_ocr = False
         
         # Load model
         self.model = self._load_model()
@@ -169,6 +193,18 @@ class YOLOv11PlateDetector:
                             class_id=int(cls_id),
                             timestamp=time.time()
                         )
+                        
+                        # Perform OCR if enabled and we have a cropped plate
+                        if self.enable_ocr and self.ocr_processor and cropped_plate is not None:
+                            try:
+                                ocr_result = self.ocr_processor.extract_text(cropped_plate)
+                                detection.license_plate = ocr_result.cleaned_text
+                                detection.ocr_confidence = ocr_result.confidence
+                                detection.valid_plate = ocr_result.valid_plate
+                                
+                                logger.debug(f"OCR result: '{ocr_result.cleaned_text}' (conf: {ocr_result.confidence:.3f})")
+                            except Exception as e:
+                                logger.error(f"OCR processing failed: {e}")
                         
                         detections.append(detection)
             

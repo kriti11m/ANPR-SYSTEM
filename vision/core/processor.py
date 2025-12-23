@@ -46,10 +46,11 @@ class FrameProcessor:
         resize_dims: Optional[Tuple[int, int]] = None,
         yolo_model_path: str = "yolov11n.pt",
         confidence_threshold: float = 0.5,
-        enable_yolo: bool = True
+        enable_yolo: bool = True,
+        enable_ocr: bool = True
     ):
         """
-        Initialize the frame processor with YOLOv11 integration.
+        Initialize the frame processor with YOLOv11 integration and OCR.
         
         Args:
             target_fps: Target processing FPS
@@ -58,11 +59,13 @@ class FrameProcessor:
             yolo_model_path: Path to YOLOv11 model file
             confidence_threshold: Minimum confidence for detections
             enable_yolo: Whether to enable YOLO detection
+            enable_ocr: Whether to enable OCR text extraction
         """
         self.target_fps = target_fps
         self.frame_skip = frame_skip
         self.resize_dims = resize_dims
         self.enable_yolo = enable_yolo
+        self.enable_ocr = enable_ocr
         
         # Initialize YOLO detector if enabled
         self.detector = None
@@ -70,7 +73,8 @@ class FrameProcessor:
             try:
                 self.detector = YOLOv11PlateDetector(
                     model_path=yolo_model_path,
-                    confidence_threshold=confidence_threshold
+                    confidence_threshold=confidence_threshold,
+                    enable_ocr=enable_ocr
                 )
                 logger.info(f"YOLOv11 detector initialized successfully")
             except Exception as e:
@@ -444,25 +448,28 @@ def process_webcam_stream(
     device_id: int = 0, 
     target_fps: float = 30.0,
     yolo_model: str = "yolov11n.pt",
-    confidence: float = 0.5
+    confidence: float = 0.5,
+    enable_ocr: bool = True
 ) -> Iterator[Tuple[np.ndarray, Dict[str, Any], List[Detection]]]:
     """
-    Convenience function for processing webcam stream with YOLO detection.
+    Convenience function for processing webcam stream with YOLO detection and OCR.
     
     Args:
         device_id: Webcam device ID
         target_fps: Target processing FPS
         yolo_model: YOLO model to use
         confidence: Confidence threshold
+        enable_ocr: Whether to perform OCR on detected plates
     
     Yields:
         Tuple[np.ndarray, Dict[str, Any], List[Detection]]: 
-        (frame, metadata, detections)
+        (frame, metadata, detections with OCR text)
     """
     processor = FrameProcessor(
         target_fps=target_fps,
         yolo_model_path=yolo_model,
-        confidence_threshold=confidence
+        confidence_threshold=confidence,
+        enable_ocr=enable_ocr
     )
     yield from processor.process_single_source(device_id, f"webcam_{device_id}")
 
