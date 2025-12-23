@@ -23,6 +23,9 @@ from dataclasses import dataclass
 from enum import Enum
 import time
 
+# Import our advanced normalization utility
+from ..utils.plate_normalizer import normalize_license_plate, PlateValidationResult
+
 # OCR engine imports (with graceful fallback)
 try:
     import pytesseract
@@ -368,73 +371,40 @@ class LicensePlateOCR:
     
     def clean_text(self, text: str) -> str:
         """
-        Clean extracted text to get valid license plate format.
+        Clean extracted text using advanced Indian license plate normalization.
         
         Args:
             text: Raw OCR extracted text
             
         Returns:
-            Cleaned alphanumeric license plate text
+            Cleaned and normalized license plate text
         """
         if not text:
             return ""
         
-        # Convert to uppercase
-        text = text.upper()
+        # Use our advanced normalization utility
+        result = normalize_license_plate(text)
         
-        # Remove all non-alphanumeric characters
-        text = re.sub(r'[^A-Z0-9]', '', text)
-        
-        # Common OCR correction patterns
-        corrections = {
-            'O': '0',  # Letter O to digit 0
-            'I': '1',  # Letter I to digit 1  
-            'S': '5',  # Letter S to digit 5 (sometimes)
-            'G': '6',  # Letter G to digit 6 (sometimes)
-            'B': '8',  # Letter B to digit 8 (sometimes)
-        }
-        
-        # Apply corrections only if it makes sense in context
-        cleaned = text
-        for old, new in corrections.items():
-            # Only replace if surrounded by digits or at edges with digits nearby
-            cleaned = re.sub(f'(?<=[0-9]){old}(?=[0-9])', new, cleaned)
-            cleaned = re.sub(f'^{old}(?=[0-9])', new, cleaned)
-            cleaned = re.sub(f'(?<=[0-9]){old}$', new, cleaned)
-        
-        # Remove any remaining non-alphanumeric
-        cleaned = re.sub(r'[^A-Z0-9]', '', cleaned)
-        
-        # Limit length (most plates are 5-8 characters)
-        if len(cleaned) > 8:
-            cleaned = cleaned[:8]
-        
-        return cleaned
+        # Return the normalized text even if validation failed
+        # This preserves the cleaned format for further processing
+        return result.normalized_text if result.normalized_text else text.upper()
     
     def validate_plate_text(self, text: str) -> bool:
         """
-        Validate if text matches common license plate patterns.
+        Validate if text matches Indian license plate patterns using advanced normalization.
         
         Args:
-            text: Cleaned license plate text
+            text: Text to validate as license plate
             
         Returns:
-            True if text matches valid plate patterns
+            True if text is a valid Indian license plate format
         """
-        if not text or len(text) < 4 or len(text) > 8:
+        if not text or len(text.strip()) < 3:
             return False
         
-        # Check against common patterns
-        for pattern in self.plate_patterns:
-            if re.match(pattern, text):
-                return True
-        
-        # Additional heuristics
-        # At least one digit and one letter
-        has_digit = any(c.isdigit() for c in text)
-        has_letter = any(c.isalpha() for c in text)
-        
-        return has_digit and has_letter
+        # Use our advanced normalization and validation
+        result = normalize_license_plate(text)
+        return result.is_valid and result.confidence_score > 0.5
     
     def extract_text(self, image: np.ndarray, engine: OCREngine = None) -> OCRResult:
         """
