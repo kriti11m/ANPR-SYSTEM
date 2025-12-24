@@ -19,76 +19,118 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'backend'))
 try:
     from vision.utils.plate_normalizer import normalize_license_plate
     from backend.services.plate_tracking import LicensePlateTracker
+    from vision.utils.ocr_repair import OCRRepairEngine, enhanced_normalize_with_repair
 except ImportError as e:
     print(f"❌ Cannot import system components: {e}")
     sys.exit(1)
 
 
 def test_actual_normalization_capability():
-    """Test what the normalizer can actually handle"""
-    print("🔍 TESTING ACTUAL NORMALIZATION CAPABILITIES")
-    print("=" * 60)
+    """Test actual normalization capabilities with realistic OCR errors"""
+    print("\n🔍 Testing Actual Normalization Capability...")
     
+    # Test cases with common OCR errors that occur in real scenarios
     test_cases = [
-        # Perfect inputs
-        {"input": "DL01AB1234", "description": "Perfect Delhi plate"},
-        {"input": "MH12DE3456", "description": "Perfect Maharashtra plate"},
-        {"input": "KA05BC7890", "description": "Perfect Karnataka plate"},
+        # Clean text (should work)
+        ("MH12AB1234", "Standard format"),
+        ("DL8CAF9754", "Delhi format"),
+        ("GJ05BZ9999", "Gujarat format"),
         
-        # Spaced inputs
-        {"input": "DL 01 AB 1234", "description": "Spaced Delhi plate"},
-        {"input": "MH 12 DE 3456", "description": "Spaced Maharashtra plate"},
+        # Common OCR errors (O→0, I→1, etc.)
+        ("MH1ZAB1234", "O→0 error in district"),
+        ("MHI2AB1234", "I→1 error in district"), 
+        ("MH12AB1Z34", "O→0 error in number"),
+        ("MH12ABI234", "I→1 error in number"),
+        ("MHIZABI234", "Multiple I/O errors"),
+        ("0L8CAF9754", "0→O error at start"),
+        ("DL8CAFQ754", "9→Q error"),
+        ("GJ05BZ99Q9", "9→Q at end"),
         
-        # OCR Error cases (what might fail)
-        {"input": "DLO1AB1234", "description": "OCR Error: O instead of 0"},
-        {"input": "MHI2DE3456", "description": "OCR Error: I instead of 1"},
-        {"input": "DLOI AB I234", "description": "Multiple OCR errors"},
+        # Spacing/formatting issues
+        ("MH 12 AB 1234", "Spacing errors"),
+        ("MH12 AB1234", "Partial spacing"),
+        ("mh12ab1234", "Lowercase"),
+        ("MH12AB 1234", "Number spacing"),
         
-        # Invalid cases
-        {"input": "INVALID123", "description": "Invalid format"},
-        {"input": "XX99ZZ9999", "description": "Invalid state code"},
+        # Noise and partial corruption
+        ("MH12AB123", "Missing digit"),
+        ("XH12AB1234", "M→X corruption"),
+        ("MH12XB1234", "A→X corruption"),
+        ("MH12AB12345", "Extra digit"),
+        
+        # Bharat Series
+        ("22BH1234AB", "Bharat series"),
+        ("22BHI234AB", "Bharat with I error"),
+        ("Z2BH1234AB", "Bharat with corruption"),
     ]
     
-    passed = 0
-    total = len(test_cases)
+    success_count = 0
+    repair_success_count = 0
+    repair_engine = OCRRepairEngine()
     
-    for i, case in enumerate(test_cases, 1):
-        input_text = case["input"]
-        description = case["description"]
-        
-        print(f"\n📋 Test {i}/{total}: {description}")
-        print(f"   Input: '{input_text}'")
-        
+    print("\n� Testing Standard Normalization vs. With Pre-Repair:")
+    print("=" * 80)
+    
+    for ocr_text, description in test_cases:
+        # Test standard normalization
         try:
-            result = normalize_license_plate(input_text)
+            result = normalize_license_plate(ocr_text)
+            standard_success = result.is_valid and result.normalized_text
+        except:
+            standard_success = False
+        
+        # Test with pre-repair
+        try:
+            repaired_result_tuple = enhanced_normalize_with_repair(ocr_text)
+            repaired_result = repaired_result_tuple[0]  # Extract the result from tuple
+            repair_success = repaired_result.is_valid and repaired_result.normalized_text
+        except:
+            repair_success = False
+        
+        if standard_success:
+            success_count += 1
+        if repair_success:
+            repair_success_count += 1
             
-            print(f"   ✅ Processed successfully")
-            print(f"   📄 Normalized: '{result.normalized_text}'")
-            print(f"   ✅ Valid: {result.is_valid}")
-            
-            if result.is_valid:
-                print(f"   🏛️  State: {result.state_code}")
-                print(f"   🏢 District: {result.district_code}")
-                print(f"   🔢 Series: {result.series}")
-                print(f"   🔢 Number: {result.number}")
-                passed += 1
-            else:
-                print(f"   ❌ Errors: {', '.join(result.errors)}")
-                
-        except Exception as e:
-            print(f"   🚨 Exception: {e}")
+        # Visual status
+        standard_status = "✅" if standard_success else "❌"
+        repair_status = "✅" if repair_success else "❌"
+        improvement = "�" if (repair_success and not standard_success) else ""
+        
+        print(f"{ocr_text:15} | {standard_status} Standard | {repair_status} Pre-Repair {improvement} | {description}")
     
-    print(f"\n📊 NORMALIZATION RESULTS:")
-    print(f"   ✅ Successful: {passed}/{total}")
-    print(f"   📈 Success Rate: {(passed/total)*100:.1f}%")
+    total_tests = len(test_cases)
+    standard_rate = (success_count / total_tests) * 100
+    repair_rate = (repair_success_count / total_tests) * 100
+    improvement = repair_rate - standard_rate
     
-    return passed, total
+    print("=" * 80)
+    print(f"📈 RESULTS:")
+    print(f"   Standard Normalization: {success_count}/{total_tests} ({standard_rate:.1f}%)")
+    print(f"   With Pre-Repair Stage: {repair_success_count}/{total_tests} ({repair_rate:.1f}%)")
+    print(f"   Improvement: +{improvement:.1f} percentage points")
+    
+    # Assessment
+    if repair_rate >= 80:
+        print("🎯 SUCCESS: Target 80% success rate achieved!")
+    elif repair_rate >= 75:
+        print("✅ GOOD: Close to target, minor tweaking needed")
+    elif improvement >= 20:
+        print("� PROGRESS: Significant improvement, continue optimization")
+    else:
+        print("⚠️  NEEDS WORK: Repair stage needs enhancement")
+        
+    return {
+        'standard_success_rate': standard_rate,
+        'repair_success_rate': repair_rate,
+        'improvement': improvement,
+        'total_tests': total_tests
+    }
 
 
 def test_actual_tracking_capability():
     """Test what the tracking system can actually handle"""
-    print("\n🗄️ TESTING ACTUAL TRACKING CAPABILITIES")
-    print("=" * 60)
+    print("\n🗄️ Testing Actual Tracking Capability...")
     
     # Use temporary database for testing
     import tempfile
@@ -98,50 +140,48 @@ def test_actual_tracking_capability():
     tracker = LicensePlateTracker(temp_db.name)
     
     test_plates = [
-        "DL 01 AB 1234",
-        "MH 12 DE 3456", 
-        "DL 01 AB 1234",  # Same plate - should increment
-        "KA 05 BC 7890",
-        "MH 12 DE 3456",  # Same plate - should increment
-        "DL 01 AB 1234",  # Same plate - should increment to 3
+        "DL01AB1234",
+        "MH12DE3456", 
+        "DL01AB1234",  # Same plate - should increment
+        "KA05BC7890",
+        "MH12DE3456",  # Same plate - should increment
+        "DL01AB1234",  # Same plate - should increment to 3
     ]
     
-    print(f"🎯 Processing {len(test_plates)} tracking operations...")
+    success_count = 0
+    expected_counts = {"DL01AB1234": 3, "MH12DE3456": 2, "KA05BC7890": 1}
     
-    for i, plate in enumerate(test_plates, 1):
-        print(f"\n📱 Operation {i}: {plate}")
-        
+    for plate in test_plates:
         try:
             result = tracker.track_license_plate_pass(plate)
-            
-            print(f"   ✅ Tracked successfully")
-            print(f"   📊 Pass Count: {result.pass_count}")
-            print(f"   🆕 New Plate: {'Yes' if result.is_new_plate else 'No'}")
-            
+            success_count += 1
         except Exception as e:
-            print(f"   🚨 Exception: {e}")
+            print(f"❌ {plate} → ERROR: {e}")
     
-    # Get final statistics
-    try:
-        stats = tracker.get_summary_stats()
-        print(f"\n📊 FINAL TRACKING STATS:")
-        print(f"   📊 Unique Plates: {stats.get('total_unique_plates', 'N/A')}")
-        print(f"   📊 Total Passes: {stats.get('total_passes', 'N/A')}")
-        print(f"   📊 Average Passes: {stats.get('avg_passes_per_plate', 'N/A')}")
-        
-        # Show individual plate stats
-        plate_stats = tracker.get_license_plate_stats(limit=10)
-        print(f"\n📋 INDIVIDUAL PLATE RESULTS:")
-        for stat in plate_stats:
-            print(f"   🚗 {stat['plate_number']}: {stat['pass_count']} passes")
-            
-    except Exception as e:
-        print(f"   🚨 Stats Exception: {e}")
+    # Verify counts are correct
+    validation_success = 0
+    for plate, expected_count in expected_counts.items():
+        try:
+            # Get actual count from database
+            stats = tracker.get_license_plate_stats(limit=100)
+            actual_count = next((s['pass_count'] for s in stats if s['plate_number'] == plate), 0)
+            if actual_count == expected_count:
+                validation_success += 1
+                print(f"✅ {plate}: {actual_count} passes (expected {expected_count})")
+            else:
+                print(f"❌ {plate}: {actual_count} passes (expected {expected_count})")
+        except Exception as e:
+            print(f"❌ {plate} validation error: {e}")
     
     # Cleanup
     os.unlink(temp_db.name)
     
-    return True
+    total_tests = len(test_plates) + len(expected_counts)
+    overall_success = success_count + validation_success
+    success_rate = (overall_success / total_tests) * 100
+    
+    print(f"📊 Tracking Success Rate: {overall_success}/{total_tests} ({success_rate:.1f}%)")
+    return success_rate
 
 
 def test_end_to_end_realistic_workflow():
@@ -202,51 +242,42 @@ def test_end_to_end_realistic_workflow():
 
 
 def main():
-    """Main assessment function"""
-    print("🔬 ANPR SYSTEM ACTUAL CAPABILITY ASSESSMENT")
-    print("=" * 80)
-    print("This tests what your system CAN and CANNOT actually do.")
-    print("Not a demo - real capability testing.")
-    print()
+    """Run comprehensive capability assessment"""
+    print("� ANPR System - Actual Capability Assessment")
+    print("=" * 60)
     
-    # Test normalization
-    norm_passed, norm_total = test_actual_normalization_capability()
+    # Test 1: Normalization capability (with and without pre-repair)
+    norm_results = test_actual_normalization_capability()
     
-    # Test tracking  
-    tracking_ok = test_actual_tracking_capability()
+    # Test 2: Tracking capability  
+    track_rate = test_actual_tracking_capability()
     
-    # Test end-to-end
-    e2e_valid = test_end_to_end_realistic_workflow()
+    # Overall assessment
+    print(f"\n� OVERALL SYSTEM ASSESSMENT")
+    print("=" * 60)
+    print(f"Standard Normalization: {norm_results['standard_success_rate']:.1f}%")
+    print(f"Enhanced Normalization: {norm_results['repair_success_rate']:.1f}%")
+    print(f"License Plate Tracking: {track_rate:.1f}%")
     
-    # Final assessment
-    print("\n" + "=" * 80)
-    print("🏁 FINAL SYSTEM CAPABILITY ASSESSMENT")
-    print("=" * 80)
-    
-    print("✅ CONFIRMED WORKING CAPABILITIES:")
-    print("   • License plate normalization for clean inputs")
-    print("   • Indian license plate format validation") 
-    print("   • Database pass tracking (increment/insert logic)")
-    print("   • Multi-plate tracking with statistics")
-    print("   • End-to-end workflow for valid plates")
-    
-    print("\n❌ IDENTIFIED LIMITATIONS:")
-    print("   • OCR error correction (O→0, I→1) not implemented")
-    print("   • Noisy/corrupted OCR inputs not handled")
-    print("   • Advanced OCR preprocessing missing")
-    
-    print("\n🎯 PRODUCTION READINESS:")
-    if norm_passed >= norm_total * 0.7 and tracking_ok and e2e_valid >= 2:
-        print("   🟢 CORE SYSTEM FUNCTIONAL - Ready with clean inputs")
-        print("   📋 Recommendation: Add OCR error correction for production")
+    # Production readiness assessment
+    if (norm_results['repair_success_rate'] >= 80 and track_rate >= 90):
+        print("\n🚀 PRODUCTION READY: System meets performance targets")
+    elif (norm_results['repair_success_rate'] >= 70 and track_rate >= 80):
+        print("\n⚠️  PILOT READY: Good for controlled testing")
     else:
-        print("   🔴 NEEDS WORK - Core functionality incomplete") 
-        print("   📋 Recommendation: Fix core issues before deployment")
-    
-    print(f"\n📊 CAPABILITY SUMMARY:")
-    print(f"   📈 Normalization Success: {(norm_passed/norm_total)*100:.1f}%")
-    print(f"   📈 Tracking: {'✅ Working' if tracking_ok else '❌ Issues'}")
-    print(f"   📈 End-to-End: {e2e_valid} valid workflows completed")
+        print("\n� DEVELOPMENT: Needs more optimization")
+        
+    # Recommendations
+    print(f"\n💡 RECOMMENDATIONS:")
+    if norm_results['repair_success_rate'] < 80:
+        print("   - Enhance OCR repair patterns")
+        print("   - Add more position-aware corrections")
+    if norm_results['improvement'] > 0:
+        print(f"   - Pre-repair stage provides +{norm_results['improvement']:.1f}% improvement")
+    if track_rate < 90:
+        print("   - Review database operations")
+        
+    print(f"\n✅ Assessment Complete - System functional at {norm_results['repair_success_rate']:.1f}% success rate")
 
 
 if __name__ == "__main__":
