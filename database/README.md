@@ -1,6 +1,60 @@
-# Database Configuration and Migration README
+# ANPR License Plate Tracking Database
 
-PostgreSQL database setup for the ANPR system with schemas, migrations, and seed data.
+Complete PostgreSQL database setup for vehicle license plate tracking system.
+
+## 🎯 Core Business Logic
+
+**If license plate exists → increment pass_count and update last_seen**  
+**If license plate doesn't exist → insert new record with pass_count = 1**
+
+## 🏗️ Structure
+
+```
+database/
+├── migrations/                    # Database migration scripts
+│   ├── 001_license_plate_tracking.sql  # Core tracking logic
+│   └── 002_additional_functions.sql    # Utility functions
+├── seeds/                        # Seed data for testing
+├── init.sql                      # Base database setup
+├── common_queries.sql            # Ready-to-use SQL queries
+├── setup_postgresql.sh           # Automated setup script
+├── docker-compose.yml           # PostgreSQL + Adminer setup
+├── README_QUICKSTART.md         # Quick start guide
+├── README_SQL_QUERIES.md        # Comprehensive SQL reference
+└── README.md                    # This file
+```
+
+## 📊 Core Database Schema
+
+### Main Table: `license_plate_passes`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | UUID | Primary key |
+| `plate_number` | VARCHAR(20) | License plate number (e.g., "DL 01 AB 1234") |
+| `pass_count` | INTEGER | Number of times vehicle has passed |
+| `first_seen` | TIMESTAMP | First detection timestamp |
+| `last_seen` | TIMESTAMP | Most recent detection timestamp |
+| `created_at` | TIMESTAMP | Record creation time |
+| `updated_at` | TIMESTAMP | Last update time |
+
+### Supporting Tables
+
+#### `users` - System users
+- `id`, `email`, `password_hash`, `full_name`, `is_active`
+- `created_at`, `updated_at`
+
+#### `feeds` - Video feed sources
+- `id`, `name`, `source_type`, `source_url`, `description`, `is_active`
+- `created_at`, `updated_at`
+
+#### `detections` - Individual detections log
+- `id`, `license_plate`, `confidence`, `bounding_box`, `image_path`
+- `feed_id`, `timestamp`, `created_at`
+
+#### `processing_jobs` - Background job tracking
+- `id`, `job_type`, `status`, `input_data`, `result_data`, `error_message`
+- `created_at`, `started_at`, `completed_at`
 
 ## 🏗️ Structure
 
